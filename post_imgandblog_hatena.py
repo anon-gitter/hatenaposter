@@ -12,7 +12,7 @@ __date__ = "Feb.16,2019"
 #
 # 機能：
 # 特定のディレクトリの画像を、WebAPIを用いてはてなブログ、はてなフォトライフにアップします。
-# 
+#
 # 使用方法：
 # はてなブログのAPI KEYを平文テキストで一行記載したものを、apikey.txtとして
 # ホームディレクトリに配置します
@@ -37,10 +37,10 @@ now = datetime.now()
 dtime = str(now.year)+"""-"""+str(now.month)+"""-"""+str(now.day)+"""T"""+str(now.hour)+""":"""+str(now.minute)+""":"""+str(now.second)
 print(dtime)
 
-# setting -----------------------------------------------------------                                                                                                                                       
+# setting -----------------------------------------------------------
 username = 'fftester06'
 blogname = 'fftester06.hatenablog.com'
-draft = 'yes' # yes or no    下書きとして投稿する場合はyes。本投稿はno。                                                                                                                                                                               
+draft = 'yes' # yes or no    下書きとして投稿する場合はyes。本投稿はno。
 
 # WSSE authentication
 def wsse(username, api_key):
@@ -55,23 +55,23 @@ def create_data_blog(title, body, fotoname):
     if fotoname == None:
         text = body
     else:
-        text = body + """                                                                                                                                                                                   
-                                                                                                                                                                                                            
-[f:id:{0}:{1}j:plain]                                                                                                                                                                                     
+        text = body + """
+
+[f:id:{0}:{1}j:plain]
         """.format(username, fotoname)
 
-    template = """<?xml version="1.0" encoding="utf-8"?>                                                                                                                                                    
-    <entry xmlns="http://www.w3.org/2005/Atom" xmlns:app="http://www.w3.org/2007/app">                                                                                                                      
-    <title>{0}</title>                                                                                                                                                                                      
-    <author><name>{1}</name></author>                                                                                                                                                                       
-    <content type="text/x-markdown">                                                                                                                                                                        
-{2}                                                                                                                                                                                                         
-    </content>                                                                                                                                                                                              
-    <updated>{3}</updated>                                                                                                                                                                                  
-    <category term="" />                                                                                                                                                                                    
+    template = """<?xml version="1.0" encoding="utf-8"?>
+    <entry xmlns="http://www.w3.org/2005/Atom" xmlns:app="http://www.w3.org/2007/app">
+    <title>{0}</title>
+    <author><name>{1}</name></author>
+    <content type="text/x-markdown">
+{2}
+    </content>
+    <updated>{3}</updated>
+    <category term="" />
     <app:control>
-    <app:draft>{4}</app:draft>                                                                                                                                                                              
-    </app:control>                                                                                                                                                                                          
+    <app:draft>{4}</app:draft>
+    </app:control>
     </entry>
     """
 
@@ -116,11 +116,11 @@ def create_data_foto(filename):
 
     uploadData = b64encode(files)
 
-    template="""                                                                                                                                                                                            
-    <entry xmlns="http://purl.org/atom/ns#">                                                                                                                                                                
-    <title>{0}</title>                                                                                                                                                                                      
-    <content mode="base64" type="image/{1}">{2}</content>                                                                                                                                                   
-    </entry>                                                                                                                                                                                                
+    template="""
+    <entry xmlns="http://purl.org/atom/ns#">
+    <title>{0}</title>
+    <content mode="base64" type="image/{1}">{2}</content>
+    </entry>
     """
 
     return template.format(filename,ext,uploadData.decode())
@@ -142,18 +142,19 @@ def read_api_key():
     api_key_file = open(os.path.expanduser('~/apikey.txt'), "r")
     return api_key_file.read()
 
-# -----------------------------------------------------------                                                                                                                                          
+# -----------------------------------------------------------
 # Main function
 
 def main():
 
     # define WSSE header
-    api_key = read_api_key
+    api_key = read_api_key()
     headers = {'X-WSSE': wsse(username, api_key)}
-    
+
     # とりあえずシンプルに画像ポストのテスト
 
-    filename = Path('C:/Documents and Settings/ss/My Documents/ffxiss/ffxiuser/screenshots/Zan190214002021a.jpg')
+    #filename = Path('C:/Documents and Settings/ss/My Documents/ffxiss/ffxiuser/screenshots/Zan190214002021a.jpg')
+    filename = Path(os.path.expanduser('~/ss/Zan190214002021a.jpg'))
     data_foto = create_data_foto(filename)
 
     # upload_foto(data_foto, headers)
