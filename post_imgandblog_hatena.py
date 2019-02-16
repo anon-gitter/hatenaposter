@@ -14,15 +14,21 @@ __date__ = "Feb.16,2019"
 # 特定のディレクトリの画像を、WebAPIを用いてはてなブログ、はてなフォトライフにアップします。
 #
 # 使用方法：
-# はてなブログのAPI KEYを平文テキストで一行記載したものを、apikey.txtとして
-# ホームディレクトリに配置します
+# 下記フォーマットの設定ファイルをホームディレクトリに配置します
 # (*Windowsの場合は、C:\Documents and Settings\<ユーザ名>)
 #
+# [base]
+# api_key = abcdrfghij # <はてなブログのAPIキー>
+# base_directory = C:\DOcuments and Settings\fftester06 # <画像ディレクトリのフルパス>
+# username = fftester06 # はてなブログのユーザ名
+# blogname = fftester06.hatenablog.com # はてなブログのブログ名
+# draft = yes # 下書きならyes、公開するならno
 
 import os
 import sys
 import random
 import requests
+import configparser
 from base64 import b64encode
 from datetime import datetime
 from hashlib import sha1
@@ -33,15 +39,6 @@ from time import sleep
 import shutil
 import glob
 
-now = datetime.now()
-dtime = str(now.year)+"""-"""+str(now.month)+"""-"""+str(now.day)+"""T"""+str(now.hour)+""":"""+str(now.minute)+""":"""+str(now.second)
-print(dtime)
-
-# setting -----------------------------------------------------------
-username = 'fftester06'
-blogname = 'fftester06.hatenablog.com'
-draft = 'yes' # yes or no    下書きとして投稿する場合はyes。本投稿はno。
-
 # WSSE authentication
 def wsse(username, api_key):
     created = datetime.now().isoformat() + "Z"
@@ -51,7 +48,7 @@ def wsse(username, api_key):
     return c.format(username, b64encode(b_digest).decode(), b64encode(b_nonce).decode(), created)
 
 # Upload blog to hatena
-def create_data_blog(title, body, fotoname):
+def create_data_blog(title, body, fotoname, username, draft):
     if fotoname == None:
         text = body
     else:
@@ -75,6 +72,8 @@ def create_data_blog(title, body, fotoname):
     </entry>
     """
 
+    now = datetime.now()
+    dtime = str(now.year)+"""-"""+str(now.month)+"""-"""+str(now.day)+"""T"""+str(now.hour)+""":"""+str(now.minute)+""":"""+str(now.second)
     data = template.format(title, username, text, dtime, draft).encode()
     return data
 
@@ -97,7 +96,7 @@ def check_encoding(file):
     charset = detector.result['encoding']
     return charset
 
-def post_hatena(data, headers):
+def post_hatena(data, headers, username, blogname):
     url = 'http://blog.hatena.ne.jp/{0}/{1}/atom/entry'.format(username, blogname)
     r = requests.post(url, data=data, headers=headers)
 
@@ -107,9 +106,9 @@ def post_hatena(data, headers):
 
 # Upload images to hatena foto life
 def create_data_foto(filename):
-    infile = filename.open('rb')
+    infile = open(filename, 'rb')
     files = infile.read()
-    ext = filename.suffix
+    ext = Path(filename).suffix
     ext = ext[1:]
     if ext == "jpg":
         ext = "jpeg"
@@ -142,19 +141,33 @@ def read_api_key():
     api_key_file = open(os.path.expanduser('~/apikey.txt'), "r")
     return api_key_file.read()
 
+def read_config():
+    config = configparser.ConfigParser()
+    config.read(os.path.expanduser('~/hatenaposterConfig.txt'), 'UTF-8')
+
+    apikey = config.get('base','api_key')
+    base_directory = config.get('base','base_directory')
+    username = config.get('base','username')
+    blogname = config.get('base','blogname')
+    draft = config.get('base','draft')
+
+    return apikey, base_directory, username, blogname, draft    
+
 # -----------------------------------------------------------
 # Main function
 
 def main():
 
     # define WSSE header
-    api_key = read_api_key()
+    api_key, base_directory, username, blogname, draft = read_config()
     headers = {'X-WSSE': wsse(username, api_key)}
 
     # とりあえずシンプルに画像ポストのテスト
 
     #filename = Path('C:/Documents and Settings/ss/My Documents/ffxiss/ffxiuser/screenshots/Zan190214002021a.jpg')
-    filename = Path(os.path.expanduser('~/ss/Zan190214002021a.jpg'))
+    # print('base directory: ', base_directory)
+    filename = base_directory + '\Zan190214002021a.jpg'
+    # print("filname: ", filename)
     data_foto = create_data_foto(filename)
 
     # upload_foto(data_foto, headers)
@@ -173,9 +186,9 @@ def main():
     # body = parse_text(filename_log, charset)
     body = ""
     title = '今日のSS'
-    data_blog = create_data_blog(title, body, fotoname)
+    data_blog = create_data_blog(title, body, fotoname, username, draft)
 
-    # post_hatena(data_blog, headers)
+    post_hatena(data_blog, headers, username, blogname)
     print('Done')
 
 if __name__ == '__main__':
