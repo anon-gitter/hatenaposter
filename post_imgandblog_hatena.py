@@ -5,7 +5,7 @@
 __author__ = "fftester06"
 __status__ = "draft"
 __version__ = "0.1"
-__date__ = "Feb.16,2019"
+__date__ = "Feb.19,2019"
 #
 # Filename:
 # post_imageandblog_hatena.py
@@ -29,8 +29,10 @@ import sys
 import random
 import requests
 import configparser
+from datetime import date
 from base64 import b64encode
 from datetime import datetime
+from datetime import timedelta
 from hashlib import sha1
 from pathlib import Path
 from chardet.universaldetector import UniversalDetector
@@ -38,6 +40,7 @@ import re
 from time import sleep
 import shutil
 import glob
+import xml.etree.ElementTree as ET
 
 # WSSE authentication
 def wsse(username, api_key):
@@ -48,14 +51,7 @@ def wsse(username, api_key):
     return c.format(username, b64encode(b_digest).decode(), b64encode(b_nonce).decode(), created)
 
 # Upload blog to hatena
-def create_data_blog(title, body, fotoname, username, draft):
-    if fotoname == None:
-        text = body
-    else:
-        text = body + """
-
-[f:id:{0}:{1}j:plain]
-        """.format(username, fotoname)
+def create_data_blog(title, body, username, draft):
 
     template = """<?xml version="1.0" encoding="utf-8"?>
     <entry xmlns="http://www.w3.org/2005/Atom" xmlns:app="http://www.w3.org/2007/app">
@@ -74,16 +70,8 @@ def create_data_blog(title, body, fotoname, username, draft):
 
     now = datetime.now()
     dtime = str(now.year)+"""-"""+str(now.month)+"""-"""+str(now.day)+"""T"""+str(now.hour)+""":"""+str(now.minute)+""":"""+str(now.second)
-    data = template.format(title, username, text, dtime, draft).encode()
+    data = template.format(title, username, body, dtime, draft).encode()
     return data
-
-def parse_text(file, charset):
-    with open(file, encoding=charset) as f:
-        obj = f.readlines()
-        body  = ""
-        for i, line in enumerate(obj):
-            body = body + line
-    return body
 
 def check_encoding(file):
     detector = UniversalDetector()
@@ -122,24 +110,31 @@ def create_data_foto(filename):
     </entry>
     """
 
-    return template.format(filename,ext,uploadData.decode())
+    imgname = os.path.basename(filename)[3:]
+    return template.format(imgname,ext,uploadData.decode())
 
 def upload_foto(data, headers):
     url = 'http://f.hatena.ne.jp/atom/post/'
     r = requests.post(url, data=data, headers=headers)
+    uploaded  = False
+    fotolink = None
 
     if r.status_code != 201:
         sys.stderr.write('Upload error!\n' + 'status_code: ' + str(r.status_code) + '\n' + 'message: ' + r.text)
+    else:
+        uploaded = True
+        root = ET.fromstring(r.text)
+        for syntax in root.findall('{http://www.hatena.ne.jp/info/xmlns#}syntax'):
+            fotolink = syntax.text
+
+    return fotolink
+
 
 def foto_info(headers):
     url = 'http://f.hatena.ne.jp/atom/feed/'
     r = requests.post(url, headers=headers)
 
     return re.search('[0-9]{14}', r.text).group()
-
-def read_api_key():
-    api_key_file = open(os.path.expanduser('~/apikey.txt'), "r")
-    return api_key_file.read()
 
 def read_config():
     config = configparser.ConfigParser()
@@ -151,7 +146,10 @@ def read_config():
     blogname = config.get('base','blogname')
     draft = config.get('base','draft')
 
-    return apikey, base_directory, username, blogname, draft    
+    # Windowsパスで\が用いられている場合、\\に変換
+    base_directory_r = repr(base_directory).replace("'", "")
+    
+    return apikey, base_directory_r, username, blogname, draft    
 
 # -----------------------------------------------------------
 # Main function
@@ -162,33 +160,24 @@ def main():
     api_key, base_directory, username, blogname, draft = read_config()
     headers = {'X-WSSE': wsse(username, api_key)}
 
-    # とりあえずシンプルに画像ポストのテスト
-
-    #filename = Path('C:/Documents and Settings/ss/My Documents/ffxiss/ffxiuser/screenshots/Zan190214002021a.jpg')
-    # print('base directory: ', base_directory)
-    filename = base_directory + '\Zan190214002021a.jpg'
-    # print("filname: ", filename)
-    data_foto = create_data_foto(filename)
-
-    # upload_foto(data_foto, headers)
-    # sleep(10)
-
-    fotoflag = 1
-    print('---- Uploaded foto info ----')
-    fotoname = foto_info(headers)
-    print(fotoname)
-
-    # ブログの方もシンプルにポスト
-    # まずは定型文を付加するだけに、のちのち拡張予定
-
-    # filename_log = 'C:/Documents and Settings/ss/My Documents/ffxiss/ffxiuser/screenshots/Zan190214002021a.log'
-    # charset = check_encoding(filename_log)
-    # body = parse_text(filename_log, charset)
-    body = ""
-    title = '今日のSS'
-    data_blog = create_data_blog(title, body, fotoname, username, draft)
-
-    post_hatena(data_blog, headers, username, blogname)
+    yesterday = (date.today() + timedelta(days=-1)).strftime("%y%m%d") # 昨日の日付文字列を作成
+    filenames = glob.glob(base_directory + "/???" + yesterday + "*") # 昨日の日付を含むファイル名を取得
+    fotolinks = ""
+    for filename in filenames:
+        data_foto = create_data_foto(filename)
+        fotolink = upload_foto(data_foto, headers)
+        sleep(5)
+        if (fotolink is not None):
+            fotolinks += ( fotolink + "\n" )
+            
+    if (fotolinks == ""):
+        print("No photos to upload.")
+    else:
+        body = fotolinks
+        title = (date.today() + timedelta(days=-1))
+        data_blog = create_data_blog(title, body, username, draft)
+        post_hatena(data_blog, headers, username, blogname)
+        
     print('Done')
 
 if __name__ == '__main__':
